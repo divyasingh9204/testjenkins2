@@ -1,81 +1,62 @@
-def artifactname = "artifact_devops_${env.BUILD_NUMBER}.jar"
-def repoName = "repository_devops"
-def pipelineName = "pipeline_devops"
-def semanticVersion = "${env.BUILD_NUMBER}.0.0"
-def packageName = "package_devops_${env.BUILD_NUMBER}"
-def version = "${env.BUILD_NUMBER}.0"
-def changeRequestId = "defaultChangeRequestId"
-
+def changeRequestNumber = "null"
+def stageName = "STAGE"
+def ciPipelineName = "CI_Pipeline"
+def currPipelineName = "CD_Pipeline"
+def currStageName = "none"
+def ciBuildNumber = "13"
 pipeline {
-  agent any
-  tools {
-       maven 'Maven'
-   }
-   environment {
-	 SCANNER_HOME = tool 'sonarScanner'
-	}  
-  stages {
-       stage('Build') {
-           steps {
-              sh 'mvn -B -DskipTests clean compile'
-           }
-       }
-       stage('Test') {
-           steps {
-              sh 'mvn test'
-	      sleep(5);
-           }
-          post {
-             always {
-                junit "**/target/surefire-reports/*.xml"
-             }
-           }
-	  
-       }
-       
-       stage('Pre-Prod') {
-		steps {
-		    sleep(5);
-                    //sonarSummaries()
-                    snDevOpsArtifact(artifactsPayload: """{"artifacts": [{"name": "${artifactname}", "version": "1.${env.BUILD_NUMBER}","semanticVersion": "1.${env.BUILD_NUMBER}.0","repositoryName": "${repoName}"}],"branchName":"main"}""")
-                    snDevOpsPackage(name: "${packageName}", artifactsPayload: """{"artifacts":[{"name": "${artifactname}", "version": "1.${env.BUILD_NUMBER}","semanticVersion": "1.${env.BUILD_NUMBER}.0","repositoryName": "${repoName}"}], "branchName":"main"}""")
-            }       
-       }
-      stage('Deploy') {
-                 steps {
-		    
-                    echo 'Deploying the change....'
-                    //snDevOpsChange(ignoreErrors:false)
-                    snDevOpsChange(ignoreErrors:false,changeRequestDetails:{attributes:{short_description:Test description,start_date:2021-02-05 08:00:00,end_date:2022-04-05 08:00:00,justification:test justification,description:test description,cab_required:true,comments:This update for work notes is from jenkins file,work_notes:test work notes,assignment_group:a715cd759f2002002920bde8132e7018},setCloseCode:false})
-		    script {
-		    	echo 'Inside script step...'
-		    	changeRequestId = snDevOpsGetChangeNumber()
-			//changeRequestId = snDevOpsGetChangeNumber(changeDetails: """{"build_number":"${env.BUILD_NUMBER}","pipeline_name":pipelineName,"stage_name":"${stageName}"}""")
-			echo "Change Request Id without any attributes... ${changeRequestId}"
-		    }
-		    
-                 }
-      }
+    agent any
 
- }
- 
-}
-
-def sonarSummaries() {
-
-   //withSonarQubeEnv('Sonar_Cloud') {
-       //sh '${SCANNER_HOME}/bin/sonar-scanner -Dproject.settings=${SCANNER_HOME}/conf/qa-sonar-scanner-cloud.properties'
-	 //}
-
-    withSonarQubeEnv('sonarQube_local'){
-      if(fileExists("sonar-project.properties")) {
-      	sh '${SCANNER_HOME}/bin/sonar-scanner'
-        } else {
-            sh '${SCANNER_HOME}/bin/sonar-scanner -Dproject.settings=${SCANNER_HOME}/conf/qa-sonar-scanner.properties'
-   		  //sh '${SCANNER_HOME}/bin/sonar-scanner -Dproject.settings=${SCANNER_HOME}/conf/sonar-scanner.properties'
+    stages {
+        stage('Build') {
+            steps {
+                script{
+                    currStageName = "Build"
+                }
+                echo '${currStageName} - START'
+                echo '${currStageName} - END'                
+            }
         }
-	  }
-   // timeout(time: 1, unit: 'MINUTES') {
-   //     waitForQualityGate abortPipeline: false
-   // }
-} // end of def sonarsummaries
+        stage('Close_CI_Change') {
+            steps {
+                script{
+                    currStageName = "Close_CI_Change"
+                    echo "${currStageName} Step - START" 
+                    stageName = "Create_Change"
+                    echo "${currStageName} Step, Get changeRequestNumber using build_number => ${ciBuildNumber}, pipeline_name => ${ciPipelineName}, stage_name => ${stageName}"
+                    changeRequestNumber = snDevOpsGetChangeNumber(changeDetails: """{"build_number":"${ciBuildNumber}","pipeline_name":"${ciPipelineName}","stage_name":"${stageName}"}""")
+                    echo "${currStageName} Step, changeRequestNumber => ${changeRequestNumber} of CI_Pipeline, Proceeding to Close it"
+                    snDevOpsUpdateChangeInfo(changeRequestDetails: """{"state":"3","close_code":"successful", "close_notes":"Closing during ${currStageName} of ${currPipelineName}#${env.BUILD_NUMBER}", "description": "Canceling change as Location changed from ${currStageName} Step by ${env.BUILD_NUMBER}", "comments": "Update of change request through Update API from ${currStageName} Step by ${env.BUILD_NUMBER}", "work_notes": "Update of change request through Update API from ${currStageName} Step by ${env.BUILD_NUMBER}"}""", changeRequestNumber: """${changeRequestNumber}""")
+                    
+                }
+                echo "${currStageName} Step - DONE"
+            }
+        }
+        stage('Create_Change') {
+            steps {
+                script{
+                    currStageName = "Create_Change"
+                }                
+                echo "${currStageName} Step - START, changeRequestNumber - ${changeRequestNumber}, stageName - ${stageName}"
+                snDevOpsStep()
+                snDevOpsChange()
+                echo "${currStageName} Step - DONE, changeRequestNumber - ${changeRequestNumber}, stageName - ${stageName}"
+            }
+        }//End of Get_Change
+        stage('Get_Change') {
+            steps {
+                script{
+                    currStageName = "Get_Change"
+                    echo "${currStageName} Step (using stageName only), changeRequestNumber - ${changeRequestNumber}, stageName - ${stageName}"
+                    changeRequestNumber = snDevOpsGetChangeNumber(changeDetails: """{"stage_name":"${stageName}"}""")
+                    stageName = "Create_Change"
+                    echo "${currStageName}, Stage Name updated to ${stageName} and GET changeRequestNumber using new StageName"
+                    changeRequestNumber = snDevOpsGetChangeNumber(changeDetails: """{"stage_name":"${stageName}"}""")
+                    snDevOpsUpdateChangeInfo(changeRequestDetails: """{ "short_description": "Test description in Get_Change Step by ${env.BUILD_NUMBER}", "priority": "1", "start_date": "2021-02-05 08:00:00", "end_date": "2022-12-25 08:00:00", "justification": "test justification", "description": "test description", "cab_required": true, "comments": "This update for work notes is from jenkins file", "work_notes": "Update of change request through Update API"}""", changeRequestNumber: """${changeRequestNumber}""")
+                    echo "${currStageName} Step (using stageName only), changeRequestNumber - ${changeRequestNumber}, stageName - ${stageName}"
+                    snDevOpsUpdateChangeInfo(changeRequestDetails: """{"state":"4","reason":"Location changed", "description": "Canceling change as Location changed from ${currStageName} Step by ${env.BUILD_NUMBER}", "comments": "Update of change request through Update API from ${currStageName} Step by ${env.BUILD_NUMBER}", "work_notes": "Update of change request through Update API from ${currStageName} Step by ${env.BUILD_NUMBER}"}""", changeRequestNumber: """${changeRequestNumber}""")
+                }
+            }
+        }//End of Get_Change
+    }
+}
