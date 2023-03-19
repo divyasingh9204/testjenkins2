@@ -13,7 +13,7 @@ pipeline {
             steps {
                 snDevOpsGetChangeNumber changeDetails: '{ "pipeline_name": "divya-pipeline-2", "build_number": '${env.BUILD_NUMBER}', "stage_name": "Change_Stage"}'
         }
-
+        }
         stage('Get_Change') {
             steps {
                   //  snDevOpsUpdateChangeInfo(changeRequestDetails: """{"state":"4","reason":"Location changed", "description": "Canceling change as Location changed from ${currStageName} Step by ${env.BUILD_NUMBER}", "comments": "Update of change request through Update API from ${currStageName} Step by ${env.BUILD_NUMBER}", "work_notes": "Update of change request through Update API from ${currStageName} Step by ${env.BUILD_NUMBER}"}""", changeRequestNumber: """${changeRequestNumber}""")
