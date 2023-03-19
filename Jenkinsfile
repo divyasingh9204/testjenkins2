@@ -11,8 +11,7 @@ pipeline {
         }
         stage('Change_Stage') {
             steps {
-                snDevOpsGetChangeNumber changeDetails: '{ "pipeline_name": "divya-pipeline-2", "build_number": '${env.BUILD_NUMBER}', "stage_name": "Change_Stage"}'//, "branch_name": "master"}'
-            }
+                snDevOpsGetChangeNumber changeDetails: '{ "pipeline_name": "divya-pipeline-2", "build_number": '${env.BUILD_NUMBER}', "stage_name": "Change_Stage"}'
         }
 
         stage('Get_Change') {
